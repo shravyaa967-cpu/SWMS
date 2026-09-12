@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Waste Management Planning Simulator</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#12181B">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Habitat Cycle">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">◍</span>
+      <div><strong>Habitat Cycle</strong><small>Waste planning console</small></div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-tab="setup">① Habitat &amp; Zones</button>
+      <button class="nav-item" data-tab="parameters">② Planning Parameters</button>
+      <button class="nav-item" data-tab="forecast">③ 20-Year Forecast</button>
+      <button class="nav-item" data-tab="scenarios">④ Stress Testing</button>
+      <button class="nav-item" data-tab="sensitivity">⑤ Sensitivity</button>
+      <button class="nav-item" data-tab="optimization">⑥ Optimization</button>
+      <button class="nav-item" data-tab="budget">⑦ Budget</button>
+      <button class="nav-item" data-tab="report">⑧ Report</button>
+    </nav>
+    <div class="sidebar-foot">Runs entirely in your browser — no data leaves this device unless you enable the optional AI assistant.</div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div id="year-badge" class="year-badge">Year 20</div>
+      <div class="kpi-dock">
+        <div class="kpi"><span>Resilience</span><strong id="kpi-resilience">–</strong></div>
+        <div class="kpi"><span>Circular index</span><strong id="kpi-circular">–</strong></div>
+        <div class="kpi"><span>Landfill life</span><strong id="kpi-landfill">–</strong></div>
+        <div class="kpi"><span>Annual cost</span><strong id="kpi-cost">–</strong></div>
+      </div>
+    </header>
+
+    <!-- ① SETUP -->
+    <section id="tab-setup" class="tab-panel active">
+      <h1>Habitat &amp; zones</h1>
+      <p class="lede">Locate the habitat on a real map, then sketch its zones on the schematic grid — the simulator reads both to ground every projection in an actual place.</p>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Location</h3>
+          <div class="field-row">
+            <label>Habitat name<input type="text" id="habitat-name" placeholder="e.g. Kaup coastal panchayat"></label>
+            <label>Type
+              <select id="habitat-type">
+                <option value="village">Village</option>
+                <option value="ward">City ward</option>
+                <option value="town" selected>Town</option>
+                <option value="city">City</option>
+              </select>
+            </label>
+          </div>
+          <div class="field-row">
+            <label>Latitude<input type="number" step="0.0001" id="habitat-lat"></label>
+            <label>Longitude<input type="number" step="0.0001" id="habitat-lng"></label>
+          </div>
+          <div id="leaflet-map" class="leaflet-map"></div>
+          <p class="hint">Click or drag the pin to set the exact location.</p>
+        </div>
+        <div class="panel">
+          <h3>Zone map</h3>
+          <p class="hint">Paint the habitat's roads, settlements, water bodies and terrain. This feeds the facility-siting optimizer and flood-exposure estimates.</p>
+          <div id="zone-palette" class="zone-palette"></div>
+          <canvas id="zone-canvas" width="600" height="450" class="zone-canvas"></canvas>
+        </div>
+      </div>
+      <button id="btn-run-simulation" class="btn-primary">Run 20-year simulation →</button>
+    </section>
+
+    <!-- ② PARAMETERS -->
+    <section id="tab-parameters" class="tab-panel">
+      <h1>Planning parameters</h1>
+      <p class="lede">Seven categories drive the model. Defaults are pre-filled from the habitat type — adjust anything you know more precisely.</p>
+      <div class="param-grid">
+
+        <div class="panel">
+          <h3>Demography</h3>
+          <label>Population<input type="number" id="param-demography-population"></label>
+          <label>Annual growth rate (%)<input type="range" min="0" max="8" step="0.1" id="param-demography-growthRatePct"><span id="param-demography-growthRatePct-echo"></span></label>
+          <label>Floating population (%)<input type="range" min="0" max="40" step="1" id="param-demography-floatingPopPct"><span id="param-demography-floatingPopPct-echo"></span></label>
+          <label>Household size<input type="range" min="2" max="8" step="0.1" id="param-demography-householdSize"><span id="param-demography-householdSize-echo"></span></label>
+          <label>Literacy (%)<input type="range" min="0" max="100" step="1" id="param-demography-literacyPct"><span id="param-demography-literacyPct-echo"></span></label>
+        </div>
+
+        <div class="panel">
+          <h3>Infrastructure</h3>
+          <label>Road coverage (%)<input type="range" min="0" max="100" step="1" id="param-infrastructure-roadCoveragePct"><span id="param-infrastructure-roadCoveragePct-echo"></span></label>
+          <label>Institutions (schools/clinics)<input type="number" id="param-infrastructure-institutions"></label>
+          <label>Collection vehicles<input type="number" id="param-infrastructure-collectionVehicles"></label>
+          <label>Collection-point density (%)<input type="range" min="0" max="100" step="1" id="param-infrastructure-collectionPointDensity"><span id="param-infrastructure-collectionPointDensity-echo"></span></label>
+          <label>Existing landfill capacity (t)<input type="number" id="param-infrastructure-existingLandfillCapacityTonnes"></label>
+        </div>
+
+        <div class="panel">
+          <h3>Industrial</h3>
+          <label class="checkbox-row"><input type="checkbox" id="param-industrial-hasOrganizedIndustry"> Organized industry present</label>
+          <label>Industrial waste (t/day)<input type="number" step="0.1" id="param-industrial-industrialWasteTonnesPerDay"></label>
+          <label>Hazardous share (%)<input type="range" min="0" max="20" step="0.5" id="param-industrial-hazardousSharePct"><span id="param-industrial-hazardousSharePct-echo"></span></label>
+        </div>
+
+        <div class="panel">
+          <h3>Natural resources</h3>
+          <label>Annual rainfall (mm)<input type="number" id="param-naturalResources-annualRainfallMm"></label>
+          <label>Water bodies (count)<input type="number" id="param-naturalResources-waterBodies"></label>
+          <label>Forest cover (%)<input type="range" min="0" max="100" step="1" id="param-naturalResources-forestCoverPct"><span id="param-naturalResources-forestCoverPct-echo"></span></label>
+        </div>
+
+        <div class="panel">
+          <h3>Terrain</h3>
+          <label>Slope
+            <select id="param-terrain-slope"><option value="flat">Flat</option><option value="moderate">Moderate</option><option value="hilly">Hilly</option></select>
+          </label>
+          <label>Soil type
+            <select id="param-terrain-soilType"><option value="permeable">Permeable</option><option value="impermeable">Impermeable</option></select>
+          </label>
+          <label class="checkbox-row"><input type="checkbox" id="param-terrain-floodProne"> Flood-prone</label>
+        </div>
+
+        <div class="panel">
+          <h3>Economic</h3>
+          <label>Per-capita income (₹/yr)<input type="number" id="param-economic-perCapitaIncomeAnnual"></label>
+          <label>Annual waste-management budget (₹)<input type="number" id="param-economic-annualBudgetInr"></label>
+          <label>Willingness to pay (%)<input type="range" min="0" max="100" step="1" id="param-economic-willingnessToPayPct"><span id="param-economic-willingnessToPayPct-echo"></span></label>
+        </div>
+
+        <div class="panel">
+          <h3>Cultural</h3>
+          <label>Diet pattern
+            <select id="param-cultural-dietType"><option value="veg">Predominantly vegetarian</option><option value="mixed">Mixed</option><option value="nonveg">Predominantly non-vegetarian</option></select>
+          </label>
+          <label>Segregation adherence (%)<input type="range" min="0" max="100" step="1" id="param-cultural-segregationAdherencePct"><span id="param-cultural-segregationAdherencePct-echo"></span></label>
+          <label>Festival waste spike (%)<input type="range" min="0" max="100" step="1" id="param-cultural-festivalSpikePct"><span id="param-cultural-festivalSpikePct-echo"></span></label>
+          <label>Local practice notes<textarea id="param-cultural-localPracticeNotes" rows="2"></textarea></label>
+        </div>
+
+      </div>
+      <button id="btn-run-simulation-2" class="btn-primary" onclick="document.getElementById('btn-run-simulation').click()">Re-run simulation →</button>
+    </section>
+
+    <!-- ③ FORECAST -->
+    <section id="tab-forecast" class="tab-panel">
+      <h1>20-year forecast</h1>
+      <div class="grid-2">
+        <div class="panel chart-panel"><h3>Waste generated vs. diverted vs. landfilled</h3><canvas id="chart-waste-trend"></canvas></div>
+        <div class="panel chart-panel"><h3>Waste composition</h3><canvas id="chart-composition"></canvas></div>
+        <div class="panel chart-panel"><h3>Landfill capacity remaining</h3><canvas id="chart-landfill"></canvas></div>
+        <div class="panel chart-panel"><h3>Landfill methane emissions</h3><canvas id="chart-carbon"></canvas></div>
+      </div>
+      <div class="panel">
+        <h3>Time-travel through the plan</h3>
+        <input type="range" min="1" max="20" value="20" id="year-slider" class="year-slider">
+        <div id="year-slider-label" class="year-slider-label">Year 20</div>
+        <div class="snapshot-wrap">
+          <div class="landfill-gauge"><div id="landfill-gauge-fill" class="landfill-gauge-fill"></div><span id="landfill-gauge-label" class="landfill-gauge-label"></span></div>
+          <div id="year-snapshot" class="year-snapshot"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ④ SCENARIOS -->
+    <section id="tab-scenarios" class="tab-panel">
+      <h1>Stress testing &amp; calamity simulation</h1>
+      <p class="lede">Inject extreme conditions or unexpected events into any year and see how the plan holds up.</p>
+      <div class="panel">
+        <div class="field-row">
+          <label>Target year (1–20)<input type="number" id="scenario-year" min="1" max="20" value="6"></label>
+        </div>
+        <div class="scenario-buttons">
+          <button data-scenario="flood" class="btn-tag tag-flood">🌊 Monsoon flood</button>
+          <button data-scenario="landslide" class="btn-tag tag-landslide">⛰ Landslide</button>
+          <button data-scenario="surge" class="btn-tag tag-surge">👥 Population surge</button>
+          <button data-scenario="accident" class="btn-tag tag-accident">☣ Industrial accident</button>
+        </div>
+        <button id="btn-clear-scenarios" class="btn-secondary">Clear all scenarios</button>
+        <h3>Active scenarios</h3>
+        <ul id="scenario-log" class="scenario-log"></ul>
+      </div>
+    </section>
+
+    <!-- ⑤ SENSITIVITY -->
+    <section id="tab-sensitivity" class="tab-panel">
+      <h1>Sensitivity analysis</h1>
+      <p class="lede">Each parameter is varied ±20% independently to see which assumptions the plan is most exposed to.</p>
+      <button id="btn-run-sensitivity" class="btn-primary">Run sensitivity analysis →</button>
+      <div class="panel chart-panel tall"><canvas id="chart-tornado"></canvas></div>
+    </section>
+
+    <!-- ⑥ OPTIMIZATION -->
+    <section id="tab-optimization" class="tab-panel">
+      <h1>Facility siting &amp; fleet optimization</h1>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Recommended facility site</h3>
+          <canvas id="opt-grid-canvas" width="600" height="450" class="zone-canvas"></canvas>
+        </div>
+        <div class="panel">
+          <div id="opt-summary" class="opt-summary"></div>
+          <h3>Proposed collection routes</h3>
+          <ul id="opt-routes" class="opt-routes"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑦ BUDGET -->
+    <section id="tab-budget" class="tab-panel">
+      <h1>Budget</h1>
+      <div class="panel chart-panel"><canvas id="chart-budget"></canvas></div>
+      <div class="panel">
+        <div class="table-scroll">
+          <table class="budget-table">
+            <thead><tr><th>Year</th><th>Opex</th><th>Capex</th><th>Total</th><th>Over budget by</th></tr></thead>
+            <tbody id="budget-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ⑧ REPORT -->
+    <section id="tab-report" class="tab-panel">
+      <h1>Executive report</h1>
+      <div class="report-actions">
+        <button id="btn-generate-report" class="btn-primary">Generate report</button>
+        <button id="btn-print-report" class="btn-secondary">Print / save as PDF</button>
+      </div>
+      <div id="report-container" class="panel"></div>
+    </section>
+
+  </main>
+
+  <!-- Chat assistant -->
+  <button id="chat-toggle" class="chat-toggle" aria-label="Open planning assistant">💬</button>
+  <div id="chat-panel" class="chat-panel">
+    <div class="chat-header">
+      <strong>Planning assistant</strong>
+      <details class="api-key-box">
+        <summary>AI settings</summary>
+        <label>Optional Anthropic API key<input type="password" id="api-key-input" placeholder="sk-ant-..."></label>
+        <button id="btn-save-api-key" class="btn-secondary small">Save</button>
+        <p id="api-key-status" class="hint">Rule-based mode active — works fully offline.</p>
+      </details>
+    </div>
+    <div id="chat-log" class="chat-log"></div>
+    <form id="chat-form" class="chat-form">
+      <input type="text" id="chat-input" placeholder="Ask about waste, cost, floods, resilience…" autocomplete="off">
+      <button type="button" id="chat-mic" class="chat-mic" title="Voice input">🎙</button>
+      <button type="submit" class="btn-primary small">Send</button>
+    </form>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="js/data.js"></script>
+<script src="js/simulation.js"></script>
+<script src="js/mapZones.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/chatbot.js"></script>
+<script src="js/report.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
